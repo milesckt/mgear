@@ -636,3 +636,76 @@ def addSupportJoint(oSel=None, select=True, *args):
         pm.select(jnt_list)
 
     return jnt_list
+
+def addXRollJoint(oSel=None,
+                    compScale=False,
+                    name=None,
+                    select=True,
+                    *args):
+    """Create a non-roll joint
+
+    Create a joint that zero out the roll of the selected joint. This operation is
+    done using a decompose matrix and quant to euler node.
+
+    Args:
+        oSel (None or joint, optional): If None will use the selected joints.
+        compScale (bool, optional): Set the compScale option of the blended
+            joint. Default is True.
+        name (None, optional): Name for the blended o_node
+        *args: Maya's dummy
+
+    Returns:
+        list: xroll joints list
+
+    """
+    if not oSel:
+        oSel = pm.selected()
+    elif not isinstance(oSel, list):
+        oSel = [oSel]
+    jnt_list = []
+    for x in oSel:
+        if isinstance(x, pm.nodetypes.Joint):
+            child = child = pm.listRelatives(x,c=1)[0]
+          
+            if name:
+                bname = 'xroll_' + name
+            else:
+                bname = 'xroll_' + x.name()
+
+            jnt = pm.createNode('joint', n=bname, p=x)
+            jnt_list.append(jnt)
+            jnt.attr('radius').set(1.5)
+            # decompose the roll
+            dm = pm.createNode("decomposeMatrix",n = x +"_dm" )
+            qe = pm.createNode("quatToEuler",n= x +"_quat2Euler")
+            dm.outputQuatX >> qe.inputQuatX
+            dm.outputQuatW >> qe.inputQuatW
+            x.inverseMatrix >> dm.inputMatrix
+            # move forward a bit avoid joint overlapping
+            pb = pm.createNode("pairBlend", n= x +"_posblend")
+            pb.weight.set(0.95)
+
+            child.translate >> pb.inTranslate1
+            child.message >>  pb.inTranslate2
+            pb.outTranslate >> jnt.translate
+            qe.outputRotateX >> jnt.rx
+
+            jnt.attr("overrideEnabled").set(1)
+            jnt.attr("overrideColor").set(17)
+            jnt.attr("segmentScaleCompensate").set(compScale)
+
+            try:
+                defSet = pm.PyNode("rig_deformers_grp")
+
+            except TypeError:
+                pm.sets(n="rig_deformers_grp")
+                defSet = pm.PyNode("rig_deformers_grp")
+
+            pm.sets(defSet, add=jnt)
+        else:
+            pm.displayWarning("Blended Joint can't be added to: %s. Because "
+            "is not ot type Joint" % x.name())
+    if jnt_list and select:
+        pm.select(jnt_list)
+
+    return jnt_list
