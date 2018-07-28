@@ -688,7 +688,7 @@ def addXRollJoint(oSel=None,
             child.translate >> pb.inTranslate1
             child.message >>  pb.inTranslate2
             pb.outTranslate >> jnt.translate
-            qe.outputRotateX >> jnt.rx
+            qe.outputRotate >> jnt.rotate
 
             jnt.attr("overrideEnabled").set(1)
             jnt.attr("overrideColor").set(17)
