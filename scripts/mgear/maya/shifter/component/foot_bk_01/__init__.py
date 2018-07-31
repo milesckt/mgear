@@ -117,6 +117,9 @@ class Component(component.Main):
             if i == 0:
                 t = transform.getTransform(self.heel_ctl)
                 t = transform.setMatrixPosition(t, pos)
+            elif i == 1:
+                t = transform.getTransform(self.heel_ctl)
+                t = transform.setMatrixPosition(t, pos)
             else:
                 dir = bk_pos[i - 1]
                 t = transform.getTransformLookingAt(
@@ -378,18 +381,21 @@ class Component(component.Main):
         pm.connectAttr(self.parent_comp.blend_att, self.blend_att)
         pm.parent(self.root, self.parent_comp.ik_ctl)
         pm.parent(self.parent_comp.ik_ref, self.bk_ctl[-1])
-        pm.parentConstraint(self.parent_comp.tws3_rot,
+        pm.parentConstraint(self.parent_comp.tws_ref,
                             self.fk_ref,
                             maintainOffset=True)
-        cns = pm.scaleConstraint(self.parent_comp.fk_ref,
-                                 self.parent_comp.ik_ref,
-                                 self.fk_ref, wal=True)
-        bc_node = pm.createNode("blendColors")
-        pm.connectAttr(bc_node + ".outputB",
-                       cns + ".%sW0" % self.parent_comp.fk_ref)
-        pm.connectAttr(bc_node + ".outputR",
-                       cns + ".%sW1" % self.parent_comp.ik_ref)
-        pm.connectAttr(self.parent_comp.blend_att, bc_node + ".blender")
+        im_node = pm.createNode("mgear_intMatrix",n=self.getName("scl_bend"))
+        o_node = applyop.gear_mulmatrix_op(
+            im_node.attr("output"),
+            self.fk_ref.attr("parentInverseMatrix"))
+        o_node.rename(self.getName("scl_mmtx"))
+        self.parent_comp.fk_ref.worldMatrix >> im_node.matrixA
+        self.parent_comp.ik_ref.worldMatrix >> im_node.matrixB
+        self.parent_comp.blend_att >> im_node.blend
+        dm_node = pm.createNode("decomposeMatrix",n=self.getName("scl_dm"))
+        o_node.output >> dm_node.inputMatrix
+        dm_node.outputScale >> self.fk_ref.scale
+
 
         return
 
