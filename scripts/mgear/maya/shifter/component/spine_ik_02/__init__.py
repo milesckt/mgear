@@ -110,7 +110,7 @@ class Component(component.Main):
                                        tp=self.ik0_ctl)
 
         attribute.setKeyableAttributes(self.ik1_ctl, self.tr_params)
-        attribute.setRotOrder(self.ik1_ctl, "ZXY")
+        attribute.setRotOrder(self.ik1_ctl, "YXZ")
         attribute.setInvertMirror(self.ik1_ctl, ["tx", "ry", "rz"])
 
         # Tangent controllers -------------------------------
@@ -318,6 +318,8 @@ class Component(component.Main):
 
             # Twist references (This objects will replace the spinlookup
             # slerp solver behavior)
+            '''
+            using worldup matrix can replace the dag nodes
             t = transform.getTransformLookingAt(
                 self.guide.apos[0],
                 self.guide.apos[1],
@@ -336,8 +338,7 @@ class Component(component.Main):
 
             self.twister.append(twister)
             self.ref_twist.append(ref_twist)
-
-
+            '''
         # Connections (Hooks) ------------------------------
         self.cnx0 = primitive.addTransform(self.root, self.getName("0_cnx"))
         self.cnx1 = primitive.addTransform(self.root, self.getName("1_cnx"))
@@ -382,8 +383,9 @@ class Component(component.Main):
         self.tan1_att = self.addAnimParam("tan1", "Tangent 1", "double", 1, 0)
 
         # Volume
+        # strange behavour with vol at 1.0, set the default valus down a liitle bit
         self.volume_att = self.addAnimParam(
-            "volume", "Volume", "double", 1, 0, 1)
+            "volume", "Volume", "double", .95, 0, 1)
 
         if self.settings["autoBend"]:
             self.sideBend_att = self.addAnimParam(
@@ -515,7 +517,11 @@ class Component(component.Main):
                 self.div_cns[i], self.slv_crv, False, u, True)
 
             cns.setAttr("frontAxis", 1)  # front axis is 'Y'
-            cns.setAttr("upAxis", 0)  # front axis is 'X'
+            cns.setAttr("upAxis", 0)  # up axis is 'X'
+            cns.setAttr("worldUpType",2) # objectRotationUp
+            cns.setAttr("worldUpVectorX",1)
+            cns.setAttr("worldUpVectorY",0)
+            cns.setAttr("worldUpVectorZ",0)
 
             # Roll
             intMatrix = applyop.gear_intmatrix_op(
@@ -523,16 +529,16 @@ class Component(component.Main):
                 self.ik1_ctl + ".worldMatrix",
                 u)
 
-            dm_node = node.createDecomposeMatrixNode(intMatrix + ".output")
-            pm.connectAttr(dm_node + ".outputRotate",
-                           self.twister[i].attr("rotate"))
+            # dm_node = node.createDecomposeMatrixNode(intMatrix + ".output")
+            # pm.connectAttr(dm_node + ".outputRotate",
+            #                self.twister[i].attr("rotate"))
 
-            pm.parentConstraint(self.twister[i],
-                                self.ref_twist[i],
-                                maintainOffset=True)
+            # pm.parentConstraint(self.twister[i],
+            #                     self.ref_twist[i],
+            #                     maintainOffset=True)
 
-            pm.connectAttr(self.ref_twist[i] + ".translate",
-                           cns + ".worldUpVector")
+            pm.connectAttr(intMatrix + ".output",
+                           cns + ".worldUpMatrix")
 
             # compensate scale reference
             div_node = node.createDivNode([1, 1, 1],
