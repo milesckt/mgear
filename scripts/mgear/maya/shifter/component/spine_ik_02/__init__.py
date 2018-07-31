@@ -110,7 +110,7 @@ class Component(component.Main):
                                        tp=self.ik0_ctl)
 
         attribute.setKeyableAttributes(self.ik1_ctl, self.tr_params)
-        attribute.setRotOrder(self.ik1_ctl, "YXZ")
+        attribute.setRotOrder(self.ik1_ctl, "ZXY")
         attribute.setInvertMirror(self.ik1_ctl, ["tx", "ry", "rz"])
 
         # Tangent controllers -------------------------------
