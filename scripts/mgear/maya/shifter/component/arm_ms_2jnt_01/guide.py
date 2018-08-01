@@ -15,10 +15,10 @@ import settingsUI as sui
 AUTHOR = "Miles Cheng, Jeremie Passerin, Miquel Campos"
 URL = ""
 EMAIL = "miles@simage.com.hk, geerem@hotmail.com, hello@miquel-campos.com"
-VERSION = [1, 3, 0]
+VERSION = [1, 9, 0]
 TYPE = "arm_ms_2jnt_01"
 NAME = "arm"
-DESCRIPTION = "2 bones arm with Maya nodes for roll bones + Simage specs"
+DESCRIPTION = "2 bones arm + free tangent ctl + Simage specs"
 
 ##########################################################
 # CLASS
@@ -37,6 +37,7 @@ class Guide(guide.ComponentGuide):
     email = EMAIL
     version = VERSION
 
+    connectors = ["shoulder_01"]
     def postInit(self):
         """Initialize the position for the guide"""
         self.save_transform = ["root", "elbow", "wrist", "eff"]
@@ -158,6 +159,22 @@ class componentSettings(MayaQWidgetDockableMixin, guide.componentMainSettings):
         for item in upvRefArrayItems:
             self.settingsTab.upvRefArray_listWidget.addItem(item)
 
+        # populate connections in main settings
+        self.c_box = self.mainSettingsTab.connector_comboBox
+        for cnx in Guide.connectors:
+            self.c_box.addItem(cnx)
+        self.connector_items = [self.c_box.itemText(i) for i in
+                                range(self.c_box.count())]
+
+        currentConnector = self.root.attr("connector").get()
+        if currentConnector not in self.connector_items:
+            self.c_box.addItem(currentConnector)
+            self.connector_items.append(currentConnector)
+            pm.displayWarning(
+                "The current connector: %s, is not a valid connector for this"
+                " component. Build will Fail!!")
+        comboIndex = self.connector_items.index(currentConnector)
+        self.c_box.setCurrentIndex(comboIndex)
     def create_componentLayout(self):
 
         self.settings_layout = QtWidgets.QVBoxLayout()
@@ -232,6 +249,11 @@ class componentSettings(MayaQWidgetDockableMixin, guide.componentMainSettings):
                     self.settingsTab.upvRefArray_listWidget,
                     "upvrefarray"))
         self.settingsTab.upvRefArray_listWidget.installEventFilter(self)
+
+        self.mainSettingsTab.connector_comboBox.currentIndexChanged.connect(
+            partial(self.updateConnector,
+                    self.mainSettingsTab.connector_comboBox,
+                    self.connector_items))
 
     def eventFilter(self, sender, event):
         if event.type() == QtCore.QEvent.ChildRemoved:
