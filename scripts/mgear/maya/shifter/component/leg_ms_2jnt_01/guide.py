@@ -15,7 +15,7 @@ import settingsUI as sui
 AUTHOR = "Jeremie Passerin, Miquel Campos, Miles Cheng"
 URL = "www.jeremiepasserin.com, www.miquletd.com"
 EMAIL = "geerem@hotmail.com, hello@miquel-campos.com , miles@simage.com.hk"
-VERSION = [1, 0, 0]
+VERSION = [1, 9, 0]
 TYPE = "leg_ms_2jnt_01"
 NAME = "leg"
 DESCRIPTION = "2 bones leg with Maya nodes for roll bones + Simage " \

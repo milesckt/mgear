@@ -76,7 +76,7 @@ class Component(component.Main):
             po=datatypes.Vector(.85 * self.length0 * self.n_factor, 0, 0),
             tp=self.fk0_ctl)
 
-        attribute.setKeyableAttributes(self.fk0_roll_ctl)
+        attribute.setKeyableAttributes(self.fk0_roll_ctl,["rx"])
         self.fk0_mtx = primitive.addTransform(
             self.root, self.getName("fk0_mtx"), t)
 
@@ -122,7 +122,8 @@ class Component(component.Main):
             po=datatypes.Vector(.85 * self.length1 * self.n_factor, 0, 0),
             tp=self.fk1_ctl)
 
-        attribute.setKeyableAttributes(self.fk1_roll_ctl)
+        attribute.setKeyableAttributes(self.fk1_roll_ctl, ["rx"])
+
 
         # t = transform.getTransformFromPos(self.guide.pos["ankle"])
         # *ms* buffer object to feed into ikfk solver for foot seperation
@@ -139,12 +140,14 @@ class Component(component.Main):
 
         self.fk2_loc = primitive.addTransform(
             self.root, self.getName("fk2_loc"), t)
-
+        self.fk2_roll = primitive.addTransform(
+            self.fk2_loc, self.getName("fk2_roll"), t)#fk2 foot rotation alignment update----------------------------------------------------
         t = transform.getTransformLookingAt(
             g_apos[2], g_apos[3], self.normal, "xz", self.negate)
 
+#fk2 foot rotation alignment update----------------------------------------------------
         self.fk2_npo = primitive.addTransform(
-            self.fk2_loc, self.getName("fk2_npo"), t)
+            self.fk2_roll, self.getName("fk2_npo"), t)
 
         self.fk2_ctl = self.addCtl(
             self.fk2_npo,
@@ -158,7 +161,7 @@ class Component(component.Main):
             po=datatypes.Vector(.5 * self.length2 * self.n_factor, 0, 0),
             tp=self.fk1_roll_ctl)
 
-        attribute.setKeyableAttributes(self.fk2_ctl)
+        attribute.setKeyableAttributes(self.fk2_ctl,["rx","ry","rz","sx","sy","sz"])
 
         self.fk_ctl = [self.fk0_roll_ctl, self.fk1_ctl, self.fk2_ctl]
         self.fk_ctls = [self.fk0_ctl, self.fk0_roll_ctl, self.fk1_ctl,
@@ -184,8 +187,12 @@ class Component(component.Main):
             self.eff_loc, self.getName("tws_ref"), t)
 
         # Mid Controler ------------------------------------
+        t = transform.getTransform(self.ctrn_loc)
+        self.mid_cns = primitive.addTransform(self.ctrn_loc,
+                                                      self.getName("mid_cns"),
+                                                      t)
         self.mid_ctl = self.addCtl(
-            self.ctrn_loc,
+            self.mid_cns,
             "mid_ctl",
             transform.getTransform(self.ctrn_loc),
             self.color_ik,
@@ -193,9 +200,15 @@ class Component(component.Main):
             w=self.size * .2,
             tp=self.parentCtlTag)
 
-        attribute.setInvertMirror(self.mid_ctl, ["tx", "ty", "tz"])
+        # attribute.setInvertMirror(self.mid_ctl, ["tx", "ty", "tz"])
+        if self.negate:
+                self.mid_cns.rz.set(180)
+                self.mid_cns.sz.set(-1)
         # *ms* add knee thickness
-
+        self.mid_loc = primitive.addTransform(
+            self.mid_cns,
+            self.getName("mid_loc"),
+            t)
         # IK Controlers -----------------------------------
 
         self.ik_cns = primitive.addTransformFromPos(
@@ -213,18 +226,24 @@ class Component(component.Main):
             tp=self.mid_ctl)
 
         attribute.setInvertMirror(self.ikcns_ctl, ["tx"])
-
-        m = transform.getTransformFromPos(self.guide.pos["ankle"])
+##ik_ctl_transform********change to align to guide with world Y up*************************************************
+        # m = transform.getTransformFromPos(self.guide.pos["ankle"])
+        upv = g_apos[3]-g_apos[2]
+        wy = g_apos[2]+ datatypes.Vector(0,1,0)  
+        ikt = transform.getTransformLookingAt(
+            g_apos[2],wy,upv, "yz")
+##ik_ctl_transform********change to align to guide with world Y up*************************************************
         self.ik_ctl = self.addCtl(
             self.ikcns_ctl,
             "ik_ctl",
-            m,
+            ikt,
             self.color_ik,
             "cube",
             w=self.size * .12,
             h=self.size * .12,
             d=self.size * .12,
             tp=self.ikcns_ctl)
+##ik_ctl_transform*********************************************************
 
         attribute.setKeyableAttributes(self.ik_ctl)
         attribute.setInvertMirror(self.ik_ctl, ["tx", "ry", "rz"])
@@ -238,10 +257,25 @@ class Component(component.Main):
         # *ms* auto up vector ------------------------------
         self.upv_cns = primitive.addTransformFromPos(
             self.root, self.getName("upv_cns"), g_apos[0])
+        #--fix auto uv follow foot by adding a offset parent ------------------
+        upv = g_apos[1]-g_apos[0]
+        wy = g_apos[0]+ datatypes.Vector(0,1,0)  
+        t = transform.getTransformLookingAt(
+            g_apos[0],g_apos[2],upv, "yz",negate=True)
+
+        #----------------------------------------------------------
+
+        self.auv_org = primitive.addTransform(
+            self.root, self.getName("auv_npo"), t)
         self.upv_auv = primitive.addTransformFromPos(
-            self.root, self.getName("upv_auv"), g_apos[0])
-        self.upv_mtx = primitive.addTransformFromPos(
-            self.upv_cns, self.getName("upv_mtx"), g_apos[0])
+            self.auv_org, self.getName("auv"), g_apos[0])
+        self.upv_auvfeet = primitive.addTransformFromPos(
+            self.auv_org, self.getName("auvfeet"), g_apos[0])
+        self.upv_auvank = primitive.addTransformFromPos(
+            self.auv_org, self.getName("auvank"), g_apos[0])
+        #---------------------------------------------------------------
+        self.upv_mtx = primitive.addTransform(
+            self.upv_cns, self.getName("upv_mtx"), t)
         self.upv_npo = primitive.addTransformFromPos(
             self.upv_mtx, self.getName("upv_npo"), v)
         self.upv_ctl = self.addCtl(self.upv_npo,
@@ -324,7 +358,7 @@ class Component(component.Main):
             transform.getTransform(self.ctrn_loc))
 
         self.tws1_loc = primitive.addTransform(
-            self.tws1_npo,
+            self.mid_loc,
             self.getName("tws1_loc"),
             transform.getTransform(self.ctrn_loc))
 
@@ -334,7 +368,7 @@ class Component(component.Main):
             transform.getTransform(self.ctrn_loc))
 
         self.tws2_loc = primitive.addTransform(
-            self.tws1_npo,
+            self.mid_loc,
             self.getName("tws2_loc"),
             transform.getTransform(self.ctrn_loc))
 
@@ -355,6 +389,84 @@ class Component(component.Main):
         self.tws3_rot = primitive.addTransform(
             self.tws3_loc, self.getName("tws3_rot"), t)
 
+        ## Add tangent control
+
+        self.tan0_npo = primitive.addTransform(
+            self.tws0_loc,
+            self.getName("tan0_npo"),
+            transform.getTransform(self.tws0_rot))
+        self.tan0_npo.tx.set(self.length0*0.3)
+
+        self.tan1_npo = primitive.addTransform(
+            self.tws1_loc,
+            self.getName("tan1_npo"),
+            transform.getTransform(self.tws1_rot))
+        self.tan1_npo.tx.set(self.length0*-1/3)
+        self.tan2_npo = primitive.addTransform(
+            self.tws2_loc,
+            self.getName("tan2_npo"),
+            transform.getTransform(self.tws2_rot))
+        self.tan2_npo.tx.set(self.length1 /3)
+        self.tan3_npo = primitive.addTransform(
+            self.tws3_loc,
+            self.getName("tan3_npo"),
+            transform.getTransform(self.tws3_rot))
+        self.tan3_npo.tx.set(self.length1* -1/3)
+        po_off = datatypes.Vector(0,.3 * self.length0 * self.n_factor, 0)
+        self.tan_ctls = []
+
+        self.tan0_ctl = self.addCtl(self.tan0_npo,
+                                   "upTan0_ctl",
+                                   transform.getTransform(self.tan0_npo),
+                                   self.color_ik,
+                                   "sphere",
+                                   w=self.size * .03,
+                                   h=self.size * .03,
+                                   d=self.size * .03,
+                                   po=po_off,
+                                   tp=self.mid_ctl)
+        self.tan_ctls.append(self.tan0_ctl)
+
+        self.tan1_ctl = self.addCtl(self.tan1_npo,
+                                   "upTan1_ctl",
+                                   transform.getTransform(self.tan1_npo),
+                                   self.color_ik,
+                                   "sphere",
+                                   w=self.size * .03,
+                                   h=self.size * .03,
+                                   d=self.size * .03,
+                                   po=po_off,
+                                   tp=self.mid_ctl)
+        self.tan_ctls.append(self.tan1_ctl)
+
+        po_off = datatypes.Vector(0,.3 * self.length1 * self.n_factor, 0)
+
+        self.tan2_ctl = self.addCtl(self.tan2_npo,
+                                   "dnTan0_ctl",
+                                   transform.getTransform(self.tan2_npo),
+                                   self.color_ik,
+                                   "sphere",
+                                   w=self.size * .03,
+                                   h=self.size * .03,
+                                   d=self.size * .03,
+                                   po=po_off,
+                                   tp=self.mid_ctl)
+        self.tan_ctls.append(self.tan2_ctl)
+
+        self.tan3_ctl = self.addCtl(self.tan3_npo,
+                                   "dnTan1_ctl",
+                                   transform.getTransform(self.tan3_npo),
+                                   self.color_ik,
+                                   "sphere",
+                                   w=self.size * .03,
+                                   h=self.size * .03,
+                                   d=self.size * .053,
+                                   po= po_off,
+                                   tp=self.mid_ctl)
+        self.tan_ctls.append(self.tan3_ctl)
+
+        for tan in self.tan_ctls:
+          attribute.setKeyableAttributes(tan,["tx","ty","tz"])
         # Divisions ----------------------------------------
         # We have at least one division at the start, the end and one for
         # the knee. + 2 for knee angle control
@@ -487,6 +599,7 @@ class Component(component.Main):
         self.jnt_pos.append([self.eff_loc, 'end'])
 
         # match IK FK references
+        self.keep_node = []
 
         self.match_fk0 = primitive.addTransform(
             self.root,
@@ -525,7 +638,9 @@ class Component(component.Main):
         self.blend2_att = self.addAnimParam(
             "blend_foot", "Fk/Ik Foot", "double", self.settings["blend"], 0, 1)
         self.auv_att = self.addAnimParam(
-            "auv", "Auto Upvector", "double", 0, 0, 1)
+            "auv", "Auto Upvector", "double", 1, 0, 1)
+        self.auvff_att = self.addAnimParam(
+            "auvff", "Auv FollowFoot", "double", 0, 0, 1)
         self.roll_att = self.addAnimParam(
             "roll", "Roll", "double", 0, -180, 180)
         self.scale_att = self.addAnimParam(
@@ -543,9 +658,9 @@ class Component(component.Main):
         self.reverse_att = self.addAnimParam(
             "reverse", "Reverse", "double", 0, 0, 1)
         self.roundness0_att = self.addAnimParam(
-            "roundness_up", "Roundness Up", "double", 0, 0, self.size)
+            "roundness_up", "Roundness Up", "double", 0, 0, 1)
         self.roundness1_att = self.addAnimParam(
-            "roundness_dn", "Roundness Dn", "double", 0, 0, self.size)
+            "roundness_dn", "Roundness Dn", "double", 0, 0, 1)
         self.volume_att = self.addAnimParam(
             "volume", "Volume", "double", 1, 0, 1)
         self.knee_thickness_att = self.addAnimParam("kneethickness",
@@ -555,8 +670,9 @@ class Component(component.Main):
                                                     0,
                                                     5)
         self.jntctl_vis_att = self.addAnimParam(
-            "jntct_vis", "Joint Ctl Vis", "bool", 0, 1, 1)
-
+            "jntct_vis", "Joint Ctl Vis", "bool", 0, 0, 1)
+        self.tan_vis_att = self.addAnimParam(
+            "tan_vis", "Tangent Ctl Vis", "bool", 0)
         # Ref
         if self.settings["fkrefarray"]:
             ref_names = self.get_valid_alias_list(
@@ -567,6 +683,9 @@ class Component(component.Main):
                     "Fk Ref",
                     0,
                     ref_names)
+                attribute.addProxyAttribute(self.ref_att,
+                                            [self.fk0_ctl,
+                                             self.fk1_ctl])
 
         if self.settings["ikrefarray"]:
             ref_names = self.get_valid_alias_list(
@@ -577,6 +696,8 @@ class Component(component.Main):
                     "Ik Ref",
                     0,
                     ref_names)
+                
+                attribute.addProxyAttribute(self.ikref_att,[self.ik_ctl])
 
         if self.settings["upvrefarray"]:
             ref_names = self.get_valid_alias_list(
@@ -587,6 +708,8 @@ class Component(component.Main):
                     "UpV Ref",
                     0,
                     ref_names)
+                
+                attribute.addProxyAttribute(self.upvref_att,[self.upv_ctl])
 
         if self.validProxyChannels:
             attribute.addProxyAttribute(
@@ -594,11 +717,17 @@ class Component(component.Main):
                 [self.fk0_ctl,
                     self.fk1_ctl,
                     self.fk2_ctl,
-                    self.ik_ctl,
-                    self.upv_ctl])
-            attribute.addProxyAttribute(self.roll_att,
-                                        [self.ik_ctl, self.upv_ctl])
-
+                    self.mid_ctl,
+                    self.ik_ctl])
+            attribute.addProxyAttribute(self.blend2_att,[self.fk2_ctl,self.ik_ctl])
+            attribute.addProxyAttribute(self.roundness0_att,[self.mid_ctl])
+            attribute.addProxyAttribute(self.roundness1_att,[self.mid_ctl])
+            attribute.addProxyAttribute(self.tan_vis_att,[self.mid_ctl])
+            attribute.addProxyAttribute(self.auv_att,[self.upv_ctl])
+            attribute.addProxyAttribute(self.auvff_att,[self.upv_ctl])
+            attribute.addProxyAttribute(self.roll_att,[self.ik_ctl, self.upv_ctl])
+            attribute.addProxyAttribute(self.knee_thickness_att,[self.mid_ctl])
+            attribute.addProxyAttribute(self.jntctl_vis_att,[self.mid_ctl])
         # Setup ------------------------------------------
         # Eval Fcurve
         self.st_value = fcurve.getFCurveValues(
@@ -624,6 +753,19 @@ class Component(component.Main):
             "resample", "Resample", "bool", True)
         self.absolute_att = self.addSetupParam(
             "absolute", "Absolute", "bool", False)
+
+        self.keep_node = []
+        self.keep_node.append(self.match_fk0)
+        self.keep_node.append(self.match_fk1)
+        self.keep_node.append(self.match_fk2)
+        self.keep_node.append(self.match_ik)
+        # self.keep_node.append(self.match_ikRot)
+        self.keep_node.append(self.match_ikUpv)
+        # self.keep_node.append(self.ikRot_ctl)
+        for m in self.keep_node:
+          name = "keep_node"
+          pm.addAttr(m, at="message", ln= name)
+          self.root.message >> m+"."+name
 
     # =====================================================
     # OPERATORS
@@ -674,7 +816,7 @@ class Component(component.Main):
         # IK Solver -----------------------------------------
         out = [self.bone0, self.bone1, self.ctrn_loc, self.eff_npo]
 
-        o_node = applyop.gear_ikfk2bone_op(out,
+        mg_node = applyop.gear_ikfk2bone_op(out,
                                            self.root,
                                            self.ik_ref,
                                            self.upv_ctl,
@@ -685,25 +827,34 @@ class Component(component.Main):
                                            self.length1,
                                            self.negate)
 
-        pm.connectAttr(self.blend_att, o_node + ".blend")
+        outEff_dm = mg_node.listConnections(c=True)[-1][1]
+
+        pm.connectAttr(self.blend_att, mg_node + ".blend")
         if self.negate:
             mulVal = -1
         else:
             mulVal = 1
-        node.createMulNode(self.roll_att, mulVal, o_node + ".roll")
-        pm.connectAttr(self.scale_att, o_node + ".scaleA")
-        pm.connectAttr(self.scale_att, o_node + ".scaleB")
-        pm.connectAttr(self.maxstretch_att, o_node + ".maxstretch")
-        pm.connectAttr(self.slide_att, o_node + ".slide")
-        pm.connectAttr(self.softness_att, o_node + ".softness")
-        pm.connectAttr(self.reverse_att, o_node + ".reverse")
+        node.createMulNode(self.roll_att, mulVal, mg_node + ".roll")
+        pm.connectAttr(self.scale_att, mg_node + ".scaleA")
+        pm.connectAttr(self.scale_att, mg_node + ".scaleB")
+        pm.connectAttr(self.maxstretch_att, mg_node + ".maxstretch")
+        pm.connectAttr(self.slide_att, mg_node + ".slide")
+        pm.connectAttr(self.softness_att, mg_node + ".softness")
+        pm.connectAttr(self.reverse_att, mg_node + ".reverse")
         # update issue on effector scale interpolation, disconnect
         # for stability
         pm.disconnectAttr(self.eff_npo.scale)
 
         # auto upvector -------------------------------------
         # leg aim
-        o_node = applyop.aimCns(self.upv_auv,
+        o_node = applyop.aimCns(self.upv_auvank,
+                                self.ik_ctl,
+                                axis="-yz",
+                                wupType=4,
+                                wupVector=[0, 1, 0],
+                                wupObject=self.upv2_auv,
+                                maintainOffset=False)
+        o_node = applyop.aimCns(self.upv_auvfeet,
                                 self.ik_ctl,
                                 axis="-yz",
                                 wupType=1,
@@ -719,6 +870,12 @@ class Component(component.Main):
                                 wupVector=[0, 1, 0],
                                 wupObject=self.root,
                                 maintainOffset=False)
+        # auto upvector blend
+        pb_node = pm.createNode("pairBlend")
+        pm.connectAttr(self.upv_auvank.attr("rotate"),pb_node + ".inRotate1")
+        pm.connectAttr(self.upv_auvfeet.attr("rotate"),pb_node + ".inRotate2")
+        pm.connectAttr(pb_node + ".outRotate", self.upv_auv.attr("rotate"))
+        pm.connectAttr(self.auvff_att,pb_node + ".weight")
 
         # auto upvector connection
         o_node = applyop.gear_mulmatrix_op(
@@ -735,6 +892,7 @@ class Component(component.Main):
         pm.connectAttr(pb_node + ".outTranslate",
                        self.upv_mtx.attr("translate"))
         pm.connectAttr(self.auv_att, pb_node + ".weight")
+        #pm.connectAttr(self.auvff_att,self.upv2_auv.attr("tz"))
 
         # fk0 mtx parent constraint
         o_node = applyop.gear_mulmatrix_op(
@@ -747,6 +905,7 @@ class Component(component.Main):
                        self.fk0_mtx.attr("translate"))
 
         pm.connectAttr(dm_node + ".outputRotate", self.fk0_mtx.attr("rotate"))
+
         # fk1 loc to fk1 ref parent constraint
         o_node = applyop.gear_mulmatrix_op(
             self.fk1_ref.attr("worldMatrix"),
@@ -758,90 +917,52 @@ class Component(component.Main):
                        self.fk1_loc.attr("translate"))
 
         pm.connectAttr(dm_node + ".outputRotate", self.fk1_loc.attr("rotate"))
-        # fk1 mtx orient cns to fk1 roll
+
         pm.connectAttr(self.fk1_roll_ctl.attr("rotate"),
-                       self.fk1_mtx.attr("rotate"))
-
+                       self.fk2_roll.attr("rotate"))
         # fk2_loc position constraint to effector------------------------
-        o_node = applyop.gear_mulmatrix_op(
-            self.eff_npo.attr("worldMatrix"),
-            self.fk2_loc.attr("parentInverseMatrix"))
-
-        dm_node = pm.createNode("decomposeMatrix")
-        pm.connectAttr(o_node + ".output", dm_node + ".inputMatrix")
-        pm.connectAttr(dm_node + ".outputTranslate",
-                       self.fk2_loc.attr("translate"))
-        # fk2_loc rotation constraint to bone1 ------------------------
-
+        outEff_dm.attr("outputTranslate") >> self.fk2_loc.attr("translate")
         o_node = applyop.gear_mulmatrix_op(
             self.bone1.attr("worldMatrix"),
             self.fk2_loc.attr("parentInverseMatrix"))
 
         dm_node = pm.createNode("decomposeMatrix")
         pm.connectAttr(o_node + ".output", dm_node + ".inputMatrix")
-        pm.connectAttr(dm_node + ".outputRotate", self.fk2_loc.attr("rotate"))
+        pm.connectAttr(dm_node + ".outputRotate",
+                       self.fk2_loc.attr("rotate"))
+        # fk2_loc rotation constraint to bone1 ------------------------
 
-        # foot ikfk blending from fk ref to ik ref (serious bugfix)----
-        o_node = applyop.gear_mulmatrix_op(
+        intM_node = applyop.gear_intmatrix_op(
             self.fk_ref.attr("worldMatrix"),
-            self.eff_loc.attr("parentInverseMatrix"))
-
-        dm_node = pm.createNode("decomposeMatrix")
-        pb_node = pm.createNode("pairBlend")
-        pb_node.attr("rotInterpolation").set(1)
-        pm.connectAttr(o_node + ".output", dm_node + ".inputMatrix")
-        pm.connectAttr(dm_node + ".outputRotate", pb_node + ".inRotate1")
-        pm.connectAttr(self.blend2_att, pb_node + ".weight")
-        pm.connectAttr(pb_node + ".outRotate", self.eff_loc.attr("rotate"))
-
-        o_node = applyop.gear_mulmatrix_op(
             self.ik_ref.attr("worldMatrix"),
+            self.blend2_att)
+        o_node = applyop.gear_mulmatrix_op(
+            intM_node.attr("output"),
             self.eff_loc.attr("parentInverseMatrix"))
-
-        dm_node1 = pm.createNode("decomposeMatrix")
-        pm.connectAttr(o_node + ".output", dm_node1 + ".inputMatrix")
-        pm.connectAttr(dm_node1 + ".outputRotate", pb_node + ".inRotate2")
-        # use blendcolors to blend scale
-        bc_node = pm.createNode("blendColors")
-        pm.connectAttr(self.blend_att, bc_node + ".blender")
-        pm.connectAttr(dm_node + ".outputScale", bc_node + ".color2")
-        pm.connectAttr(dm_node1 + ".outputScale", bc_node + ".color1")
-        pm.connectAttr(bc_node + ".output", self.eff_loc.attr("scale"))
-
+        dm_node = pm.createNode("decomposeMatrix")
+        pm.connectAttr(o_node + ".output", dm_node + ".inputMatrix")
+        dm_node.attr("outputScale") >> self.eff_loc.attr("scale")
+        dm_node.attr("outputRotate") >> self.eff_loc.attr("rotate")
         # Twist references ---------------------------------
-        pm.connectAttr(self.mid_ctl.attr("translate"),
-                       self.tws1_npo.attr("translate"))
-        pm.connectAttr(self.mid_ctl.attr("rotate"),
-                       self.tws1_npo.attr("rotate"))
-        pm.connectAttr(self.mid_ctl.attr("scale"),
-                       self.tws1_npo.attr("scale"))
+        # use p constraint to counter mirror effect neg scaling
+        pm.parentConstraint(self.mid_ctl,
+                            self.mid_loc,
+                            mo=True)
+
 
         o_node = applyop.gear_mulmatrix_op(
-            self.eff_loc.attr("worldMatrix"),
+            self.tws_ref.attr("worldMatrix"),
             self.tws3_npo.attr("parentInverseMatrix"))
-
         dm_node = pm.createNode("decomposeMatrix")
         pm.connectAttr(o_node + ".output", dm_node + ".inputMatrix")
 
         pm.connectAttr(dm_node + ".outputTranslate",
                        self.tws3_npo.attr("translate"))
 
-        o_node = applyop.gear_mulmatrix_op(
-            self.bone1.attr("worldMatrix"),
-            self.tws3_npo.attr("parentInverseMatrix"))
+        pm.connectAttr(dm_node + ".outputRotate",
+                       self.tws3_npo.attr("rotate"))
 
-        dm_node = pm.createNode("decomposeMatrix")
-        pm.connectAttr(o_node + ".output", dm_node + ".inputMatrix")
-        pm.connectAttr(dm_node + ".outputRotate", self.tws3_npo.attr("rotate"))
-
-        o_node = applyop.gear_mulmatrix_op(
-            self.tws_ref.attr("worldMatrix"),
-            self.tws3_rot.attr("parentInverseMatrix"))
-
-        dm_node = pm.createNode("decomposeMatrix")
-        pm.connectAttr(o_node + ".output", dm_node + ".inputMatrix")
-        pm.connectAttr(dm_node + ".outputRotate", self.tws3_rot.attr("rotate"))
-
+        attribute.setRotOrder(self.tws3_rot, "XYZ")
         # knee thickness connection
         if self.negate:
             o_node = node.createMulNode(
@@ -854,39 +975,172 @@ class Component(component.Main):
                 [-0.5, 0.5, 0],
                 [self.tws1_loc + ".translateX", self.tws2_loc + ".translateX"])
 
-        # connect both tws1 and tws2  (mid tws)
-        self.tws0_rot.setAttr("sx", .001)
-        self.tws3_rot.setAttr("sx", .001)
 
-        add_node = node.createAddNode(self.roundness0_att, .001)
-        pm.connectAttr(add_node + ".output", self.tws1_rot.attr("sx"))
-
-        add_node = node.createAddNode(self.roundness1_att, .001)
-        pm.connectAttr(add_node + ".output", self.tws2_rot.attr("sx"))
-
-        # Roll Shoulder--use aimconstraint withour uovwctor to solve the
-        # stable twist
-
+        # setup all aim constraints
+        #tws0_loc aim
         if self.negate:
             o_node = applyop.aimCns(self.tws0_loc,
-                                    self.mid_ctl,
+                                    self.tan1_npo,
                                     axis="-xy",
                                     wupType=4,
                                     wupVector=[0, 1, 0],
-                                    wupObject=self.tws0_npo,
+                                    wupObject=self.mid_loc,
                                     maintainOffset=False)
         else:
             o_node = applyop.aimCns(self.tws0_loc,
-                                    self.mid_ctl,
+                                    self.tan1_npo,
                                     axis="xy",
                                     wupType=4,
                                     wupVector=[0, 1, 0],
-                                    wupObject=self.tws0_npo,
+                                    wupObject=self.mid_loc,
                                     maintainOffset=False)
+        #tws3_loc aim
+        if self.negate:
+            o_node = applyop.aimCns(self.tws3_loc,
+                                    self.tan2_npo,
+                                    axis="xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.mid_loc,
+                                    maintainOffset=False)
+        else:
+            o_node = applyop.aimCns(self.tws3_loc,
+                                    self.tan2_npo,
+                                    axis="-xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.mid_loc,
+                                    maintainOffset=False)
+        #tws1_loc aim
+        if self.negate:
+            o_node = applyop.aimCns(self.tws1_loc,
+                                    self.root,
+                                    axis="xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.mid_loc,
+                                    maintainOffset=False)
+        else:
+            o_node = applyop.aimCns(self.tws1_loc,
+                                    self.root,
+                                    axis="-xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.mid_loc,
+                                    maintainOffset=False)
+        pm.disconnectAttr(o_node+".constraintRotateX",self.tws1_loc.rx)
+        pm.disconnectAttr(o_node+".constraintRotateY",self.tws1_loc.ry)
+        pm.disconnectAttr(o_node+".constraintRotateZ",self.tws1_loc.rz)
+        pb_node = pm.createNode("pairBlend",n=self.getName("roundness0_pb"))
+        pb_node.attr("rotInterpolation").set(1)
+        pm.connectAttr(o_node+".constraintRotate",pb_node+".inRotate1")
+        # if self.negate:
+        #   pb_node.inRotateZ2.set(-180)
+        pm.connectAttr(o_node+".message",pb_node+".inTranslate2")
+        pm.connectAttr(pb_node+".outRotate",self.tws1_loc+".rotate")
+        pm.connectAttr(self.roundness0_att,pb_node+".weight")
+        #tws2_loc_aim
+        if self.negate:
+            o_node = applyop.aimCns(self.tws2_loc,
+                                    self.eff_loc,
+                                    axis="-xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.mid_loc,
+                                    maintainOffset=False)
+        else:
+            o_node = applyop.aimCns(self.tws2_loc,
+                                    self.eff_loc,
+                                    axis="xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.mid_loc,
+                                    maintainOffset=False)
+        pm.disconnectAttr(o_node+".constraintRotateX",self.tws2_loc.rx)
+        pm.disconnectAttr(o_node+".constraintRotateY",self.tws2_loc.ry)
+        pm.disconnectAttr(o_node+".constraintRotateZ",self.tws2_loc.rz)
+        pb_node = pm.createNode("pairBlend",n=self.getName("roundness1_pb"))
+        pb_node.attr("rotInterpolation").set(1)
+        pm.connectAttr(o_node+".constraintRotate",pb_node+".inRotate1")
+        pm.connectAttr(o_node+".message",pb_node+".inTranslate2")
+        pm.connectAttr(pb_node+".outRotate",self.tws2_loc+".rotate")
+        pm.connectAttr(self.roundness1_att,pb_node+".weight")
+        # freeform tangent ctl setup
 
+        #tws0 rot tangent ctl aim
+        if self.negate:
+            o_node = applyop.aimCns(self.tws0_rot,
+                                    self.tan0_ctl,
+                                    axis="-xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.tws0_loc,
+                                    maintainOffset=False)
+        else:
+            o_node = applyop.aimCns(self.tws0_rot,
+                                    self.tan0_ctl,
+                                    axis="xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.tws0_loc,
+                                    maintainOffset=False)  
+        #tws1 rot tangent ctl aim
+        if self.negate:
+            o_node = applyop.aimCns(self.tws1_rot,
+                                    self.tan1_ctl,
+                                    axis="xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.tws1_loc,
+                                    maintainOffset=False)
+        else:
+            o_node = applyop.aimCns(self.tws1_rot,
+                                    self.tan1_ctl,
+                                    axis="-xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.tws1_loc,
+                                    maintainOffset=False)
+        #tws2 rot tangent ctl aim
+        if self.negate:
+            o_node = applyop.aimCns(self.tws2_rot,
+                                    self.tan2_ctl,
+                                    axis="-xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.tws1_loc,
+                                    maintainOffset=False)
+        else:
+            o_node = applyop.aimCns(self.tws2_rot,
+                                    self.tan2_ctl,
+                                    axis="xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.tws1_loc,
+                                    maintainOffset=False)
+        #tws3 rot tangent ctl aim
+        if self.negate:
+            o_node = applyop.aimCns(self.tws3_rot,
+                                    self.tan3_ctl,
+                                    axis="xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.tws1_loc,
+                                    maintainOffset=False)
+        else:
+            o_node = applyop.aimCns(self.tws3_rot,
+                                    self.tan3_ctl,
+                                    axis="-xy",
+                                    wupType=4,
+                                    wupVector=[0, 1, 0],
+                                    wupObject=self.tws1_loc,
+                                    maintainOffset=False)
+        for ctl in (self.tan_ctls):
+            for shp in ctl.getShapes():
+                pm.connectAttr(self.tan_vis_att, shp.attr("visibility"))
         # Volume -------------------------------------------
-        distA_node = node.createDistNode(self.tws0_loc, self.tws1_npo)
-        distB_node = node.createDistNode(self.tws1_npo, self.tws3_loc)
+        distA_node = node.createDistNode(self.root, self.mid_ctl)
+        distB_node = node.createDistNode(self.mid_ctl, self.eff_loc)
         add_node = node.createAddNode(distA_node + ".distance",
                                       distB_node + ".distance")
         div_node = node.createDivNode(add_node + ".output",
@@ -899,7 +1153,80 @@ class Component(component.Main):
                                        dm_node + ".outputScaleX")
         self.volDriver_att = div_node2 + ".outputX"
 
-        # Divisions ----------------------------------------
+        # set up tangent npo pos using distA and B-------------------------------
+
+
+        # up tangent-----------------------------------
+        if self.negate:
+          factor = [-0.3333,0.3333]
+        else:
+          factor = [0.3333,-0.3333] 
+        div_node = node.createDivNode(distA_node + ".distance",
+                                       dm_node + ".outputScaleX")
+
+        mul_node = node.createMulNode(div_node + ".outputX", factor[0])
+        pm.connectAttr(mul_node + ".outputX", self.tan0_npo.tx)
+        mul_node = node.createMulNode(div_node + ".outputX", factor[1])
+        pm.connectAttr(mul_node + ".outputX", self.tan1_npo.tx)
+        # dn tangent ----------------------------------
+        div_node = node.createDivNode(distB_node + ".distance",
+                                       dm_node + ".outputScaleX")
+
+        mul_node = node.createMulNode(div_node + ".outputX", factor[0])
+        pm.connectAttr(mul_node + ".outputX", self.tan2_npo.tx)
+        mul_node = node.createMulNode(div_node + ".outputX", factor[1])
+        pm.connectAttr(mul_node + ".outputX", self.tan3_npo.tx)
+
+        # tangent mgear roll spline scl connection
+        # t0 
+        o_node = applyop.gear_mulmatrix_op(
+            self.tan0_ctl.attr("worldMatrix"),
+            self.tws0_loc.attr("worldInverseMatrix"))
+        dm_node = pm.createNode("decomposeMatrix",n=self.getName("tan0Localpos_dm"))
+        distTan_node = pm.createNode("distanceBetween", n=self.getName("tan0_dist"))
+        pm.connectAttr(o_node+".output", dm_node + ".inputMatrix")
+        pm.connectAttr(dm_node+".outputTranslate", distTan_node + ".point1")
+        pm.connectAttr(self.tws0_loc+".message", distTan_node + ".point2")
+        mul_node = node.createMulNode(distTan_node + ".distance", 0.5)
+        pm.connectAttr(mul_node+".outputX",self.tws0_rot.sx)
+
+        # t1
+        o_node = applyop.gear_mulmatrix_op(
+            self.tan1_ctl.attr("worldMatrix"),
+            self.tws1_loc.attr("worldInverseMatrix"))
+        dm_node = pm.createNode("decomposeMatrix",n=self.getName("tan1Localpos_dm"))
+        distTan_node = pm.createNode("distanceBetween", n=self.getName("tan1_dist"))
+        pm.connectAttr(o_node+".output", dm_node + ".inputMatrix")
+        pm.connectAttr(dm_node+".outputTranslate", distTan_node + ".point1")
+        pm.connectAttr(self.tws1_loc+".message", distTan_node + ".point2")
+        mul_node = node.createMulNode(distTan_node + ".distance", 0.5)
+        pm.connectAttr(mul_node+".outputX",self.tws1_rot.sx)        
+
+        # t2
+        o_node = applyop.gear_mulmatrix_op(
+            self.tan2_ctl.attr("worldMatrix"),
+            self.tws2_loc.attr("worldInverseMatrix"))
+        dm_node = pm.createNode("decomposeMatrix",n=self.getName("tan2Localpos_dm"))
+        distTan_node = pm.createNode("distanceBetween", n=self.getName("tan2_dist"))
+        pm.connectAttr(o_node+".output", dm_node + ".inputMatrix")
+        pm.connectAttr(dm_node+".outputTranslate", distTan_node + ".point1")
+        pm.connectAttr(self.tws2_loc+".message", distTan_node + ".point2")
+        mul_node = node.createMulNode(distTan_node + ".distance", 0.5)
+        pm.connectAttr(mul_node+".outputX",self.tws2_rot.sx)
+
+        # t3
+        o_node = applyop.gear_mulmatrix_op(
+            self.tan3_ctl.attr("worldMatrix"),
+            self.tws3_loc.attr("worldInverseMatrix"))
+        dm_node = pm.createNode("decomposeMatrix",n=self.getName("tan2Localpos_dm"))
+        distTan_node = pm.createNode("distanceBetween", n=self.getName("tan2_dist"))
+        pm.connectAttr(o_node+".output", dm_node + ".inputMatrix")
+        pm.connectAttr(dm_node+".outputTranslate", distTan_node + ".point1")
+        pm.connectAttr(self.tws3_loc+".message", distTan_node + ".point2")
+        mul_node = node.createMulNode(distTan_node + ".distance", 0.5)
+        pm.connectAttr(mul_node+".outputX",self.tws3_rot.sx)   
+
+        # # Divisions ----------------------------------------
         # div mid constraint to mid ctl
         o_node = applyop.gear_mulmatrix_op(
             self.mid_ctl.attr("worldMatrix"),
@@ -911,7 +1238,9 @@ class Component(component.Main):
         pm.connectAttr(dm_node + ".outputTranslate",
                        self.div_mid.attr("translate"))
 
-        pm.connectAttr(dm_node + ".outputRotate",
+        pb_node = node.createPairBlend(self.div_cnsUp[-1],self.div_cnsDn[0])
+        pb_node.attr("rotInterpolation").set(1)
+        pm.connectAttr(pb_node + ".outRotate",
                        self.div_mid.attr("rotate"))
 
         # at 0 or 1 the division will follow exactly the rotation of the
@@ -978,24 +1307,30 @@ class Component(component.Main):
             # get the first mult_node after sq op
             mult_node = pm.listHistory(o_node, future=True)[1]
             # linear blend effector scale
-            bc_node = pm.createNode("blendColors")
-            bc_node.setAttr("color2R", 1)
-            bc_node.setAttr("color2G", 1)
-            bc_node.setAttr("blender", scl_1_perc[i])
-            pm.connectAttr(self.eff_loc.attr("scale"), bc_node + ".color1")
+            bc_node = pm.createNode("mgear_linearInterpolate3DvectorNode",n=self.getName("mgBlendEffScl"))
+            bc_node.setAttr("vectorBX", 1)
+            bc_node.setAttr("vectorAX", 1)
+            bc_node.setAttr("vectorAY", 1)
+            bc_node.setAttr("vectorAZ", 1)
+            bc_node.setAttr("blend", scl_1_perc[i])
+            pm.connectAttr(self.eff_loc.attr("scaleY"), bc_node + ".vectorBY")
+            pm.connectAttr(self.root.attr("scaleY"), bc_node + ".vectorAY")
             # linear blend mid scale
-            bc_node2 = pm.createNode("blendColors")
-            bc_node2.setAttr("color2R", 1)
-            bc_node2.setAttr("color2G", 1)
-            bc_node2.setAttr("blender", scl_2_perc[i])
-            pm.connectAttr(self.mid_ctl.attr("scale"), bc_node2 + ".color1")
+            bc_node2 = pm.createNode("mgear_linearInterpolate3DvectorNode",n=self.getName("mgBlendMidScl"))
+            bc_node2.setAttr("vectorBX", 1)
+            bc_node2.setAttr("vectorAX", 1)
+            bc_node2.setAttr("vectorAY", 1)
+            bc_node2.setAttr("vectorAZ", 1)
+            bc_node2.setAttr("blend", scl_2_perc[i])
+            pm.connectAttr(self.mid_ctl.attr("scaleY"), bc_node2 + ".vectorBY")
+            pm.connectAttr(self.root.attr("scaleY"), bc_node2 + ".vectorAY")
             # mid_ctl scale * effector scale
-            mult_node2 = pm.createNode("multiplyDivide")
-            pm.connectAttr(bc_node2 + ".output", mult_node2 + ".input1")
-            pm.connectAttr(bc_node + ".output", mult_node2 + ".input2")
+            mult_node2 = pm.createNode("multiplyDivide",n=self.getName("linearSclCombine"))
+            pm.connectAttr(bc_node2 + ".outVector", mult_node2 + ".input1")
+            pm.connectAttr(bc_node + ".outVector", mult_node2 + ".input2")
             # plug to sq scale
-            pm.connectAttr(mult_node2 + ".output", mult_node + ".input2")
-
+            pm.connectAttr(mult_node2 + ".outputY", mult_node + ".input2Y")
+            pm.connectAttr(mult_node2 + ".outputY", mult_node + ".input2Z")
         # match IK/FK ref
         pm.connectAttr(self.bone0.attr("rotate"),
                        self.match_fk0.attr("rotate"))
