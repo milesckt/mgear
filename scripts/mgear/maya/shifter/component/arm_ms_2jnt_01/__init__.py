@@ -473,6 +473,7 @@ class Component(component.Main):
 
         for tan in self.tan_ctls:
           attribute.setKeyableAttributes(tan,["tx","ty","tz"])
+          attribute.setInvertMirror(tan, ["tx", "ty", "tz"])
         # Divisions ----------------------------------------
         # We have at least one division at the start, the end and one for the
         # elbow. + 2 for elbow angle control
@@ -822,6 +823,7 @@ class Component(component.Main):
         for ctl in (self.div_ctls):
             for shp in ctl.getShapes():
                 pm.connectAttr(self.jntctl_vis_att, shp.attr("visibility"))
+            attribute.setInvertMirror(ctl, ["tx", "ty", "tz"])
 
         # Controls ROT order -----------------------------------
         attribute.setRotOrder(self.fk0_ctl, "YZX")
