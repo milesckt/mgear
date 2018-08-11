@@ -636,6 +636,7 @@ def addSupportJoint(oSel=None, select=True, *args):
         pm.select(jnt_list)
 
     return jnt_list
+<<<<<<< HEAD
 
 def addXRollJoint(oSel=None,
                     compScale=False,
@@ -709,3 +710,5 @@ def addXRollJoint(oSel=None,
         pm.select(jnt_list)
 
     return jnt_list
+=======
+>>>>>>> parent of d24ca49... addXRollJoint
